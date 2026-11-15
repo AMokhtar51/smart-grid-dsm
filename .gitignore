@@ -1,0 +1,6 @@
+data/raw/*
+!data/raw/README.md
+.vscode
+__pycache__/
+*.pyc
+.pytest_cache/

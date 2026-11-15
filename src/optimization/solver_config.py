@@ -1,0 +1,15 @@
+# Solver-side configuration: objective weights and GA parameters.
+# Re-exported from src/optimization/config.py so `from ... import *` keeps working.
+
+W_COST = 1.0
+W_PEAK = 1.0
+W_PENALTY = 1000.0
+
+POPULATION_SIZE = 50
+TOURNAMENT_SIZE = 3
+ELITISM = 2
+CROSSOVER_RATE = 0.8
+MUTATION_RATE = 0.1
+EVALUATION_BUDGET = 5000
+LOCAL_SEARCH_MAX_SHIFT = 3
+NUM_SEEDS = 30

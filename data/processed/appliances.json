@@ -1,0 +1,44 @@
+{
+  "slots_per_day": 24,
+  "source": "REFIT Electrical Load Measurements (cleaned), Zenodo 5063428, House 2, CC BY 4.0",
+  "appliances": [
+    {
+      "name": "dishwasher",
+      "power_kw": 0.747,
+      "duration_slots": 2,
+      "interruptible": true,
+      "earliest_start": 12,
+      "latest_end": 23,
+      "assumed": false,
+      "n_cycles": 487
+    },
+    {
+      "name": "ev_charger",
+      "power_kw": 7.0,
+      "duration_slots": 4,
+      "interruptible": true,
+      "earliest_start": 0,
+      "latest_end": 9,
+      "assumed": true
+    },
+    {
+      "name": "washing_machine",
+      "power_kw": 0.369,
+      "duration_slots": 2,
+      "interruptible": true,
+      "earliest_start": 8,
+      "latest_end": 22,
+      "assumed": false,
+      "n_cycles": 350
+    },
+    {
+      "name": "water_heater",
+      "power_kw": 2.0,
+      "duration_slots": 2,
+      "interruptible": true,
+      "earliest_start": 5,
+      "latest_end": 22,
+      "assumed": true
+    }
+  ]
+}
