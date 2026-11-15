@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from .timegrid import SLOTS_PER_DAY, validate_slot
 
@@ -24,7 +25,7 @@ class PricingTiers:
             raise ValueError("pricing config must be a dict with a 'tiers' list")
         n = cfg.get("slots_per_day", SLOTS_PER_DAY)
         if n != SLOTS_PER_DAY:
-            raise ValueError("slots_per_day %r != %d" % (n, SLOTS_PER_DAY))
+            raise ValueError(f"slots_per_day {n!r} != {SLOTS_PER_DAY}")
         tiers = []
         for t in cfg["tiers"]:
             tier = Tier(
@@ -34,16 +35,22 @@ class PricingTiers:
                 price_per_kwh=_require_price(t),
             )
             if not 0 <= tier.start_hour < tier.end_hour <= SLOTS_PER_DAY:
-                raise ValueError("tier %r: need 0 <= start_hour < end_hour <= %d" % (tier.name, SLOTS_PER_DAY))
+                raise ValueError(
+                    f"tier {tier.name}: need 0 <= start_hour < end_hour <= {SLOTS_PER_DAY}"
+                )
             tiers.append(tier)
         tiers.sort(key=lambda t: t.start_hour)
         cursor = 0
         for t in tiers:
             if t.start_hour != cursor:
-                raise ValueError("tiers must tile 0..%d contiguously; gap/overlap at hour %d" % (SLOTS_PER_DAY, cursor))
+                raise ValueError(
+                    f"tiers must tile 0..{SLOTS_PER_DAY} contiguously; gap/overlap at hour {cursor}"
+                )
             cursor = t.end_hour
         if cursor != SLOTS_PER_DAY:
-            raise ValueError("tiers must cover 0..%d; coverage ends at %d" % (SLOTS_PER_DAY, cursor))
+            raise ValueError(
+                f"tiers must cover 0..{SLOTS_PER_DAY}; coverage ends at {cursor}"
+            )
         return cls(tiers=tuple(tiers))
 
     @classmethod
@@ -57,7 +64,7 @@ class PricingTiers:
         for t in self.tiers:
             if t.start_hour <= slot < t.end_hour:
                 return t.price_per_kwh
-        raise ValueError("no tier covers slot %d" % slot)
+        raise ValueError(f"no tier covers slot {slot}")
 
     def price_vector(self):
         return [self.price_at(s) for s in range(SLOTS_PER_DAY)]
@@ -74,8 +81,6 @@ def load_pricing(path=None):
 
 
 def _pricing_path(path):
-    from pathlib import Path
-
     if path is not None:
         return Path(path)
     return Path(__file__).resolve().parents[2] / PRICING_CONFIG
@@ -84,21 +89,21 @@ def _pricing_path(path):
 def _require_str(d, key):
     v = d.get(key)
     if not isinstance(v, str) or not v.strip():
-        raise ValueError("tier %r: %s must be a non-empty string" % (d, key))
+        raise ValueError(f"tier {d!r}: {key} must be a non-empty string")
     return v
 
 
 def _require_int(d, key):
     v = d.get(key)
     if not isinstance(v, int) or isinstance(v, bool):
-        raise ValueError("tier %r: %s must be an int" % (d, key))
+        raise ValueError(f"tier {d!r}: {key} must be an int")  # noqa: TRY004
     return v
 
 
 def _require_price(d):
     v = d.get("price_per_kwh")
     if not isinstance(v, (int, float)) or isinstance(v, bool):
-        raise ValueError("tier %r: price_per_kwh must be a number" % d)
+        raise ValueError(f"tier {d!r}: price_per_kwh must be a number")  # noqa: TRY004
     if v < 0:
-        raise ValueError("tier %r: price_per_kwh must be non-negative" % d)
+        raise ValueError(f"tier {d!r}: price_per_kwh must be non-negative")
     return float(v)

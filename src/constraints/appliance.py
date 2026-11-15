@@ -1,5 +1,6 @@
 import json
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from .timegrid import SLOTS_PER_DAY
 
@@ -37,7 +38,7 @@ class Appliance:
             )
         if self.duration_slots > self.latest_end - self.earliest_start:
             raise ValueError(
-                f"{self.name}: window {self.earliest_start}..{self.latest_end} too short for duration_slots={self.duration_slots}"  # noqa: UP031
+                f"{self.name}: window {self.earliest_start}..{self.latest_end} too short for duration_slots={self.duration_slots}"
             )
         if not isinstance(self.interruptible, bool):
             raise ValueError(f"{self.name}: interruptible must be a bool")  # noqa: TRY004
@@ -98,8 +99,6 @@ def load_appliances(path=None):
 
 
 def _appliances_path(path):
-    from pathlib import Path
-
     if path is not None:
         return Path(path)
     return Path(__file__).resolve().parents[2] / APPLIANCES_FILE

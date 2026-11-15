@@ -11,7 +11,6 @@ import random
 from src.constraints import SLOTS_PER_DAY, load_appliances, load_pricing
 from src.optimization.solver_config import *
 
-# v1 gene order (frozen contract). Extra appliances, if any, follow sorted.
 _ORDER = ["washing_machine", "dishwasher", "ev_charger", "water_heater"]
 
 
@@ -24,7 +23,6 @@ APPLIANCES = {a.name: a for a in load_appliances()}
 for _n in _ordered(APPLIANCES):
     APPLIANCES[_n] = APPLIANCES.pop(_n)
 
-# Baseline schedule (GA-team tunable): preferred start slot per appliance.
 BASELINE_START = {
     "washing_machine": 18,
     "dishwasher": 20,
@@ -41,7 +39,7 @@ def _build_jobs(appliances):
             for i in range(a.duration_slots // chunk):
                 jobs.append(
                     {
-                        "id": f"{name}_{i}",  # noqa: UP031
+                        "id": f"{name}_{i}",
                         "appliance": name,
                         "power_kw": a.power_kw,
                         "duration_h": chunk,
@@ -63,7 +61,6 @@ def _build_jobs(appliances):
     return jobs
 
 
-# --- Pricing ----------------------------------------------------------------
 _pricing = load_pricing()
 PRICES = _pricing.price_vector()
 
@@ -80,7 +77,6 @@ PRICE_SCENARIOS = {
     "spiky": _spiky,
 }
 
-# --- Solar / base load ------------------------------------------------------
 SOLAR_BY_HOUR = {
     6: 0.3,
     7: 0.8,
@@ -110,17 +106,16 @@ HOUSEHOLD_LIMIT_KW = 10.0
 def _validate():
     for label, vals in (("SOLAR_KW", SOLAR_KW), ("BASE_LOAD_KW", BASE_LOAD_KW)):
         if len(vals) != SLOTS_PER_DAY:
-            raise ValueError(f"{label} length must be {SLOTS_PER_DAY}")  # noqa: UP031
+            raise ValueError(f"{label} length must be {SLOTS_PER_DAY}")
         for v in vals:
             if not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0:
                 raise ValueError(f"{label} entries must be non-negative numbers")
-    if HOUSEHOLD_LIMIT_KW is not None:  # noqa: SIM102
-        if (
-            not isinstance(HOUSEHOLD_LIMIT_KW, (int, float))
-            or isinstance(HOUSEHOLD_LIMIT_KW, bool)
-            or HOUSEHOLD_LIMIT_KW < 0
-        ):
-            raise ValueError("HOUSEHOLD_LIMIT_KW must be a non-negative number or None")
+    if HOUSEHOLD_LIMIT_KW is not None and (
+        not isinstance(HOUSEHOLD_LIMIT_KW, (int, float))
+        or isinstance(HOUSEHOLD_LIMIT_KW, bool)
+        or HOUSEHOLD_LIMIT_KW < 0
+    ):
+        raise ValueError("HOUSEHOLD_LIMIT_KW must be a non-negative number or None")
 
 
 _validate()

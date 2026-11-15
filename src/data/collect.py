@@ -1,18 +1,18 @@
 """Derive appliance profiles from the REFIT public dataset (CC BY 4.0).
 
-Downloads one house's cleaned CSV from the REFIT Electrical Load Measurements
-dataset (Zenodo record 5063428), detects appliance ON-cycles, and derives
-typical power draw, run duration, and interruptibility per appliance. Results
-are written to data/processed/appliances.json.
+Downloads REFIT House 2's cleaned CSV from the REFIT Electrical Load
+Measurements dataset (Zenodo record 5063428) if not already in data/raw/,
+detects appliance ON-cycles, and derives typical power draw, run duration,
+and interruptibility per appliance. Results are written to
+data/processed/appliances.json.
 
-Appliances not present in the chosen house (e.g. EV charger, water heater)
-keep documented hand-set values, marked "assumed": true.
+Appliances not monitored in House 2 (EV charger, water heater) keep
+documented hand-set values, marked "assumed": true.
 
 Usage:
-    python -m src.data.collect [--house 2] [--redownload]
+    python -m src.data.collect
 """
 
-import argparse
 import csv
 import json
 import sys
@@ -24,20 +24,26 @@ RAW_DIR = REPO_ROOT / "data" / "raw"
 OUT_FILE = REPO_ROOT / "data" / "processed" / "appliances.json"
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.constraints import Appliance, SLOTS_PER_DAY  # noqa: E402
+from src.constraints import Appliance, SLOTS_PER_DAY
 
-ZENODO = "https://zenodo.org/records/5063428/files/CLEAN_House{i}.csv?download=1"
+HOUSE_NUMBER = 2
+# REFIT House 2 cleaned CSV (Zenodo record 5063428, CC BY 4.0).
+ZENODO_URL = f"https://zenodo.org/records/5063428/files/CLEAN_House{HOUSE_NUMBER}.csv?download=1"
+RAW_FILE = RAW_DIR / f"CLEAN_House{HOUSE_NUMBER}.csv"
 
-# IAM column -> appliance name, per house (REFIT ReadMe).
-HOUSE_COLUMNS = {
-    2: {1: "fridge_freezer", 2: "washing_machine", 3: "dishwasher",
-        4: "television_site", 5: "microwave", 6: "toaster", 7: "hifi",
-        8: "kettle", 9: "overhead_fan"},
-    5: {1: "fridge_freezer", 2: "tumble_dryer", 3: "washing_machine",
-        4: "dishwasher", 5: "desktop_computer", 6: "television_site",
-        7: "microwave", 8: "kettle", 9: "toaster"},
+# IAM column -> appliance name (REFIT ReadMe, House 2).
+COLUMNS = {
+    1: "fridge_freezer",
+    2: "washing_machine",
+    3: "dishwasher",
+    4: "television_site",
+    5: "microwave",
+    6: "toaster",
+    7: "hifi",
+    8: "kettle",
+    9: "overhead_fan",
 }
-SCHEDULABLE = {"washing_machine", "dishwasher", "tumble_dryer", "washer_dryer"}
+SCHEDULABLE = {"washing_machine", "dishwasher"}
 
 ON_THRESHOLD_W = 20.0
 MIN_EVENT_MINUTES = 10
@@ -45,18 +51,16 @@ MIN_PEAK_W = 50.0
 GAP_TOLERANCE_MINUTES = 5
 INTERRUPTIBLE_GAP_FRACTION = 0.3
 
-# Windows follow the frozen v1 contract; the dataset grounds power, duration
+# Windows follow the frozen contract; the dataset grounds power, duration
 # and interruptibility only.
 CONTRACT_WINDOWS = {
     "washing_machine": (8, 22),
     "dishwasher": (12, 23),
-    "tumble_dryer": (8, 22),
-    "washer_dryer": (8, 22),
     "ev_charger": (0, 9),
     "water_heater": (5, 22),
 }
 
-# Hand-set values for appliances REFIT House 2 does not monitor.
+# Hand-set values for appliances House 2 does not monitor.
 ASSUMED = {
     "ev_charger": {"power_kw": 7.0, "duration_slots": 4, "interruptible": True},
     "water_heater": {"power_kw": 2.0, "duration_slots": 2, "interruptible": True},
@@ -64,28 +68,18 @@ ASSUMED = {
 
 
 def main():
-    args = _parse_args()
-    raw = RAW_DIR / ("CLEAN_House%d.csv" % args.house)
-    if args.redownload or not raw.exists():
-        _download(raw, args.house)
-    profiles = _derive(raw, args.house)
-    _write(profiles, args.house)
-    print("wrote %s" % OUT_FILE)
+    if not RAW_FILE.exists():
+        _download(RAW_FILE)
+    profiles = _derive(RAW_FILE)
+    _write(profiles)
+    print(f"wrote {OUT_FILE}")
 
 
-def _parse_args():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--house", type=int, default=2, help="REFIT house number")
-    p.add_argument("--redownload", action="store_true")
-    return p.parse_args()
-
-
-def _download(dest, house):
-    url = ZENODO.format(i=house)
+def _download(dest):
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    print("downloading %s -> %s" % (url, dest))
+    print(f"downloading {ZENODO_URL} -> {dest}")
     tmp = dest.with_suffix(dest.suffix + ".part")
-    with urllib.request.urlopen(url) as r, open(tmp, "wb") as f:
+    with urllib.request.urlopen(ZENODO_URL) as r, open(tmp, "wb") as f:
         done = 0
         while True:
             chunk = r.read(1 << 20)
@@ -93,13 +87,13 @@ def _download(dest, house):
                 break
             f.write(chunk)
             done += len(chunk)
-            print("\r%.0f MB" % (done / 1e6), end="", flush=True)
+            print(f"\r{done / 1e6:.0f} MB", end="", flush=True)
     print()
     tmp.replace(dest)
 
 
-def _derive(raw, house):
-    series = _to_minutes(raw, house)
+def _derive(raw):
+    series = _to_minutes(raw)
     profiles = {}
     for alias, minutes in series.items():
         events = _events(minutes)
@@ -110,15 +104,13 @@ def _derive(raw, house):
     return profiles
 
 
-def _to_minutes(raw, house):
+def _to_minutes(raw):
     """Stream the 8-second CSV into per-minute mean watts, aligned lists.
 
     A minute with no readable rows counts as 0 W (OFF). Rows are chronological;
     out-of-order rows are skipped.
     """
-    tracked = {i: a for i, a in HOUSE_COLUMNS[house].items() if a in SCHEDULABLE}
-    if not tracked:
-        raise SystemExit("no schedulable appliances in REFIT House %d" % house)
+    tracked = {i: a for i, a in COLUMNS.items() if a in SCHEDULABLE}
     series = {a: [] for a in tracked.values()}
     buf = {a: [0.0, 0] for a in tracked.values()}
     base = None
@@ -206,7 +198,7 @@ def _profile(alias, events):
     }
 
 
-def _write(profiles, house):
+def _write(profiles):
     entries = []
     for name in sorted(profiles):
         p = profiles[name]
@@ -225,7 +217,7 @@ def _write(profiles, house):
         entries.append(a)
     out = {
         "slots_per_day": SLOTS_PER_DAY,
-        "source": "REFIT Electrical Load Measurements (cleaned), Zenodo 5063428, House %d, CC BY 4.0" % house,
+        "source": f"REFIT Electrical Load Measurements (cleaned), Zenodo 5063428, House {HOUSE_NUMBER}, CC BY 4.0",
         "appliances": entries,
     }
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
