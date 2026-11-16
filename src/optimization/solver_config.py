@@ -1,5 +1,4 @@
 # Solver-side configuration: objective weights and GA parameters.
-# Re-exported from src/optimization/config.py so `from ... import *` keeps working.
 
 W_COST = 1.0
 W_PEAK = 1.0

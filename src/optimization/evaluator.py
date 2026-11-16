@@ -58,7 +58,7 @@ def _load_profile(chromosome):
 def _violations(chromosome):
     v = 0
     if len(chromosome) != config.N_GENES:
-        raise ValueError("chromosome length %d != %d" % (len(chromosome), config.N_GENES))
+        raise ValueError(f"chromosome length {len(chromosome)} != {config.N_GENES}")
     n = config.SLOTS_PER_DAY
     # window violations
     for i, s in enumerate(chromosome):
@@ -68,8 +68,6 @@ def _violations(chromosome):
             continue
         if s < job["earliest_start"]:
             v += job["earliest_start"] - s
-        if s + job["duration_h"] > job["latest_start"] + job["duration_h"]:
-            pass
         end = s + job["duration_h"]
         latest_finish = job["latest_start"] + job["duration_h"]
         if end > latest_finish:
@@ -81,7 +79,7 @@ def _violations(chromosome):
         if not _is_int(s):
             continue
         by_app.setdefault(job["appliance"], []).append((s, job["duration_h"]))
-    for app, chunks in by_app.items():
+    for chunks in by_app.values():
         if len(chunks) < 2:
             continue
         coverage = [0] * n
@@ -96,21 +94,26 @@ def _violations(chromosome):
     return v
 
 
-def evaluate(chromosome, prices=None, scenario=None, use_solar=None, use_base_load=None):
+def evaluate(
+    chromosome, prices=None, scenario=None, use_solar=None, use_base_load=None
+):
     global _EVAL_COUNT
     if len(chromosome) != config.N_GENES:
-        raise ValueError("chromosome length %d != %d" % (len(chromosome), config.N_GENES))
+        raise ValueError(f"chromosome length {len(chromosome)} != {config.N_GENES}")
     if prices is None:
         if scenario is not None:
             if scenario not in config.PRICE_SCENARIOS:
-                raise ValueError("unknown price scenario: %s" % scenario)
+                raise ValueError(f"unknown price scenario: {scenario}`")
             prices = config.PRICE_SCENARIOS[scenario]
         else:
             prices = config.PRICES
     prices = list(prices)
     if len(prices) != config.SLOTS_PER_DAY:
-        raise ValueError("prices length must be %d" % config.SLOTS_PER_DAY)
-    if any((not isinstance(p, (int, float))) or isinstance(p, bool) or p < 0 for p in prices):
+        raise ValueError(f"prices length must be {config.SLOTS_PER_DAY}")
+    if any(
+        (not isinstance(p, (int, float))) or isinstance(p, bool) or p < 0
+        for p in prices
+    ):
         raise ValueError("prices must be non-negative numbers")
 
     if use_solar is None:
@@ -163,18 +166,32 @@ def load_profile(chromosome):
 
 
 def net_profile(chromosome, scenario=None, use_solar=None, use_base_load=None):
-    res = evaluate(chromosome, scenario=scenario, use_solar=use_solar, use_base_load=use_base_load)
+    res = evaluate(
+        chromosome, scenario=scenario, use_solar=use_solar, use_base_load=use_base_load
+    )
     # evaluate counts; for profile-only callers this is acceptable
     return res["net_import"]
 
 
 def baseline_net_profile(scenario=None, use_solar=None, use_base_load=None):
-    return net_profile(baseline_chromosome(), scenario=scenario, use_solar=use_solar, use_base_load=use_base_load)
+    return net_profile(
+        baseline_chromosome(),
+        scenario=scenario,
+        use_solar=use_solar,
+        use_base_load=use_base_load,
+    )
 
 
 def savings(chromosome, scenario=None, use_solar=None, use_base_load=None):
-    base_res = evaluate(baseline_chromosome(), scenario=scenario, use_solar=use_solar, use_base_load=use_base_load)
-    opt_res = evaluate(chromosome, scenario=scenario, use_solar=use_solar, use_base_load=use_base_load)
+    base_res = evaluate(
+        baseline_chromosome(),
+        scenario=scenario,
+        use_solar=use_solar,
+        use_base_load=use_base_load,
+    )
+    opt_res = evaluate(
+        chromosome, scenario=scenario, use_solar=use_solar, use_base_load=use_base_load
+    )
     base_cost = base_res["cost"]
     opt_cost = opt_res["cost"]
     base_peak = base_res["peak"]
@@ -183,15 +200,28 @@ def savings(chromosome, scenario=None, use_solar=None, use_base_load=None):
         "baseline_cost": base_cost,
         "optimized_cost": opt_cost,
         "cost_savings": base_cost - opt_cost,
-        "cost_savings_pct": (base_cost - opt_cost) / base_cost * 100.0 if base_cost else 0.0,
+        "cost_savings_pct": (base_cost - opt_cost) / base_cost * 100.0
+        if base_cost
+        else 0.0,
         "baseline_peak": base_peak,
         "optimized_peak": opt_peak,
-        "peak_savings_pct": (base_peak - opt_peak) / base_peak * 100.0 if base_peak else 0.0,
+        "peak_savings_pct": (base_peak - opt_peak) / base_peak * 100.0
+        if base_peak
+        else 0.0,
     }
 
 
-def before_after_profiles(chromosome, scenario=None, use_solar=None, use_base_load=None):
+def before_after_profiles(
+    chromosome, scenario=None, use_solar=None, use_base_load=None
+):
     return {
-        "baseline": baseline_net_profile(scenario=scenario, use_solar=use_solar, use_base_load=use_base_load),
-        "optimized": net_profile(chromosome, scenario=scenario, use_solar=use_solar, use_base_load=use_base_load),
+        "baseline": baseline_net_profile(
+            scenario=scenario, use_solar=use_solar, use_base_load=use_base_load
+        ),
+        "optimized": net_profile(
+            chromosome,
+            scenario=scenario,
+            use_solar=use_solar,
+            use_base_load=use_base_load,
+        ),
     }
