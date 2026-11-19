@@ -15,7 +15,7 @@ class Appliance:
     interruptible: bool = False
     earliest_start: int = 0
     latest_end: int = SLOTS_PER_DAY
-    min_run_slots: int | None = None
+    min_run_slots: int | None = None  # applies only to interruptible appliances
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name.strip():

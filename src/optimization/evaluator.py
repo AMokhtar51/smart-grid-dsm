@@ -3,28 +3,12 @@ from src.optimization import config
 _EVAL_COUNT = 0
 
 
-def reset_eval_count():
-    global _EVAL_COUNT
-    _EVAL_COUNT = 0
-
-
-def eval_count():
-    return _EVAL_COUNT
-
-
 def _is_int(x):
     return isinstance(x, int) and not isinstance(x, bool)
 
 
-def jobs():
-    return config.JOBS
-
-
-def n_genes():
-    return config.N_GENES
-
-
-def baseline_chromosome():
+def baseline_chromosome() -> list[int]:
+    """Return a baseline chromosome that starts at the appliance's earliest_start."""
     out = []
     for a_name, a in config.APPLIANCES.items():
         if a.interruptible:
@@ -35,10 +19,6 @@ def baseline_chromosome():
         else:
             out.append(config.BASELINE_START[a_name])
     return out
-
-
-def _job_at(i):
-    return config.JOBS[i]
 
 
 def _load_profile(chromosome):
@@ -60,7 +40,7 @@ def _violations(chromosome):
     if len(chromosome) != config.N_GENES:
         raise ValueError(f"chromosome length {len(chromosome)} != {config.N_GENES}")
     n = config.SLOTS_PER_DAY
-    # window violations
+    # window violations (a start before the earliest/a end after the latest)
     for i, s in enumerate(chromosome):
         job = config.JOBS[i]
         if not _is_int(s):
@@ -95,8 +75,25 @@ def _violations(chromosome):
 
 
 def evaluate(
-    chromosome, prices=None, scenario=None, use_solar=None, use_base_load=None
-):
+    chromosome: list[int],
+    prices=None,
+    scenario: str | None = None,
+    use_solar: bool | None = None,
+    use_base_load: bool | None = None,
+) -> dict:
+    """
+    Score one chromosome schedule (lower objective is better).
+
+    chromosome: list of start slots, one per job in JOBS.
+    prices: optional 24-value price vector; overrides scenario.
+    scenario: optional key of PRICE_SCENARIOS ("flat", "tou", "spiky").
+    use_solar, use_base_load: override the config defaults.
+
+    Builds the household load, subtracts solar, and computes grid cost,
+    peak import and constraint violations. Returns a dict with feasible,
+    violations, cost, peak, penalty, objective, components, net_import
+    and load_profile. Each call increments the evaluation counter.
+    """
     global _EVAL_COUNT
     if len(chromosome) != config.N_GENES:
         raise ValueError(f"chromosome length {len(chromosome)} != {config.N_GENES}")
@@ -138,7 +135,9 @@ def evaluate(
     cost = sum(net[h] * prices[h] for h in range(n))
     peak = max(net) if n else 0.0
     penalty = config.W_PENALTY * v
-    objective = config.W_COST * cost + config.W_PEAK * peak + penalty
+    objective = (
+        config.W_COST * cost + config.W_PEAK * peak + penalty
+    )  # * cost + peak + penalty
     feasible = v == 0
 
     _EVAL_COUNT += 1
