@@ -224,3 +224,10 @@ def before_after_profiles(
             use_base_load=use_base_load,
         ),
     }
+
+def reset_eval_count():
+    global _EVAL_COUNT
+    _EVAL_COUNT = 0
+
+def eval_count():
+    return _EVAL_COUNT
