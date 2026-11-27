@@ -92,8 +92,35 @@ def test_random_feasible_chromosome():
 
 
 def test_baseline_chromosome_length():
-    assert len(evaluator.baseline_chromosome()) == config.N_GENES == 10
+    assert len(evaluator.baseline_chromosome()) == config.N_GENES
 
+
+def test_household_limit_violation():
+    chrom = evaluator.baseline_chromosome()
+
+    old_limit = config.HOUSEHOLD_LIMIT_KW
+    try:
+        config.HOUSEHOLD_LIMIT_KW = 1.0
+
+        r = evaluator.evaluate(chrom, scenario="tou")
+
+        assert r["violations"] > 0
+        assert r["feasible"] is False
+    finally:
+        config.HOUSEHOLD_LIMIT_KW = old_limit
+
+def test_penalty_applied_for_violations():
+    chrom = evaluator.baseline_chromosome()
+
+    valid = evaluator.evaluate(chrom, scenario="tou")
+
+    invalid_chrom = chrom.copy()
+    invalid_chrom[4] = 10
+
+    invalid = evaluator.evaluate(invalid_chrom, scenario="tou")
+
+    assert invalid["penalty"] > valid["penalty"]
+    assert invalid["objective"] > valid["objective"]
 
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
